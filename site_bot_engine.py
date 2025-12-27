@@ -83,13 +83,16 @@ role = st.sidebar.radio("Who are you?", ["Visitor", "Client (Alice)", "Admin"])
 # Map UI selection to internal role IDs
 user_role = "visitor"
 current_user_id = "guest"
+input_placeholder = "Ask about opening hours, returns, or products..." # <--- Custom Text
 
 if role == "Client (Alice)":
     user_role = "client"
     current_user_id = "client_alice"
+    input_placeholder = "Ask 'Where is my order?' or about policies..." # <--- Custom Text
 elif role == "Admin":
     user_role = "admin"
     current_user_id = "admin"
+    input_placeholder = "Ask for sales reports, inventory, or revenue..." # <--- Custom Text
 
 st.sidebar.info(f"Active Role: **{user_role.upper()}**")
 if user_role == "client":
@@ -128,19 +131,16 @@ if prompt := st.chat_input(input_placeholder):
     if user_role == "visitor":
         tools = [search_knowledge_base]
         sys_instruct = base_identity + " You are a Receptionist. Answer general questions. Do not discuss specific orders."
-        input_placeholder = "Ask about opening hours, returns, or products..." # <--- Custom Text
         
     elif user_role == "client":
         def safe_get_orders(): 
             return get_my_orders(current_user_id)
         tools = [search_knowledge_base, safe_get_orders]
         sys_instruct = base_identity + f" You are a Support Agent helping {current_user_id}. You can check their orders."
-        input_placeholder = "Ask 'Where is my order?' or about policies..." # <--- Custom Text
         
     elif user_role == "admin":
         tools = [search_knowledge_base, get_admin_sales_report, check_inventory]
         sys_instruct = base_identity + " You are the General Manager. You have full access."
-        input_placeholder = "Ask for sales reports, inventory, or revenue..." # <--- Custom Text
         
     # 3. Generate Response
     with st.chat_message("assistant"):
