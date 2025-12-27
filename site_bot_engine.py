@@ -1,17 +1,21 @@
+import streamlit as st
 import sqlite3
 from google import genai
 from google.genai import types
 import os
 
-# --- PART 1: THE FAKE BACKEND (Database & Knowledge) ---
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="Intelligent Site Bot", layout="wide")
+st.title("🤖 3-Brain Business Bot")
 
-# We create a temporary database in RAM
-conn = sqlite3.connect(":memory:", check_same_thread=False)
-cursor = conn.cursor()
-
-def init_db():
-    """Sets up fake tables for our simulation."""
-    # Create Tables
+# --- PART 1: THE PERSISTENT DATABASE ---
+# We use @st.cache_resource so the DB isn't wiped every time you click a button
+@st.cache_resource
+def get_db_connection():
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
+    cursor = conn.cursor()
+    
+    # Init Tables
     cursor.execute("CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, stock INTEGER, price REAL)")
     cursor.execute("CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id TEXT, status TEXT, total REAL)")
     
@@ -22,9 +26,12 @@ def init_db():
     cursor.execute("INSERT INTO orders VALUES (102, 'client_bob', 'Processing', 499.00)")
     cursor.execute("INSERT INTO orders VALUES (103, 'client_alice', 'Delivered', 198.00)")
     conn.commit()
-    print("✅ System: Database initialized with fake products and orders.")
+    return conn
 
-# The Static Knowledge Base (for Visitors)
+conn = get_db_connection()
+cursor = conn.cursor()
+
+# Knowledge Base
 KNOWLEDGE_BASE = """
 We are 'FutureTech Solutions'.
 Open Mon-Fri, 9am-5pm.
@@ -33,17 +40,12 @@ We sell AI hardware for enthusiasts.
 Returns are accepted within 30 days.
 """
 
-# --- PART 2: THE TOOLS (The Hands) ---
-
+# --- PART 2: THE TOOLS ---
 def search_knowledge_base(query: str):
-    """Searches general company info (Hours, policies, contact)."""
-    print(f"\n[TOOL] Reading Knowledge Base for: {query}")
-    # In a real app, this would be a Vector Search. For now, we return the whole text.
     return KNOWLEDGE_BASE
 
 def get_my_orders(user_id: str):
-    """Returns order status for a specific logged-in user."""
-    print(f"\n[TOOL] Querying SQL for User: {user_id}")
+    # Note: We use the cursor from the global scope/cached connection
     res = cursor.execute("SELECT id, status, total FROM orders WHERE user_id=?", (user_id,))
     rows = res.fetchall()
     if not rows:
@@ -51,92 +53,92 @@ def get_my_orders(user_id: str):
     return f"Found {len(rows)} orders: " + ", ".join([f"Order #{r[0]} ({r[1]}) - ${r[2]}" for r in rows])
 
 def get_admin_sales_report():
-    """Returns total sales revenue (ADMIN ONLY)."""
-    print(f"\n[TOOL] 🔒 EXECUTING ADMIN SQL REPORT...")
     res = cursor.execute("SELECT SUM(total), COUNT(*) FROM orders")
     row = res.fetchone()
     return f"Total Revenue: ${row[0]}, Total Orders: {row[1]}"
 
 def check_inventory():
-    """Checks current product stock levels (ADMIN ONLY)."""
-    print(f"\n[TOOL] 🔒 Checking Inventory...")
     res = cursor.execute("SELECT name, stock FROM products")
     return str(res.fetchall())
 
-# --- PART 3: THE ROUTER (The Brain Switcher) ---
+# --- PART 3: THE ROUTER & UI ---
 
-client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+# Get API Key
+if "GOOGLE_API_KEY" in st.secrets:
+    api_key = st.secrets["GOOGLE_API_KEY"]
+else:
+    api_key = os.environ.get("GOOGLE_API_KEY")
 
-def get_bot_response(user_role: str, user_id: str, message: str):
-    """
-    Decides WHICH brain and WHICH tools to use based on the user's role.
-    This is the core architectural innovation.
-    """
-    
+if not api_key:
+    st.error("API Key missing.")
+    st.stop()
+
+client = genai.Client(api_key=api_key)
+
+# Sidebar: Role Selection (The "Login" Simulation)
+st.sidebar.header("Identity Simulation")
+role = st.sidebar.radio("Who are you?", ["Visitor", "Client (Alice)", "Admin"])
+
+# Map UI selection to internal role IDs
+user_role = "visitor"
+current_user_id = "guest"
+
+if role == "Client (Alice)":
+    user_role = "client"
+    current_user_id = "client_alice"
+elif role == "Admin":
+    user_role = "admin"
+    current_user_id = "admin"
+
+st.sidebar.info(f"Active Role: **{user_role.upper()}**")
+if user_role == "client":
+    st.sidebar.success(f"Logged in as: {current_user_id}")
+
+# Chat Interface
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+if prompt := st.chat_input("Ask something..."):
+    # 1. User Message
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # 2. Router Logic (Decide Brain)
     tools = []
-    system_instruction = ""
-    
-    # BRAIN 1: The Receptionist (Visitor)
+    sys_instruct = ""
+
     if user_role == "visitor":
         tools = [search_knowledge_base]
-        system_instruction = "You are a polite Receptionist. Answer general questions. If asked about orders, ask them to log in."
-        
-    # BRAIN 2: The Account Manager (Client)
+        sys_instruct = "You are a Receptionist. Answer general questions. Do not discuss specific orders."
     elif user_role == "client":
-        # We wrap the tool to inject the user_id automatically (Security Best Practice)
-        # This prevents Alice from asking for Bob's orders.
-        def safe_get_orders():
-            """Gets orders for the current user."""
-            return get_my_orders(user_id)
-            
+        # Wrap tool to inject user ID safely
+        def safe_get_orders(): 
+            return get_my_orders(current_user_id)
         tools = [search_knowledge_base, safe_get_orders]
-        system_instruction = f"You are a Support Agent helping {user_id}. You can check their specific orders."
-        
-    # BRAIN 3: The General Manager (Admin)
+        sys_instruct = f"You are a Support Agent helping {current_user_id}. You can check their orders."
     elif user_role == "admin":
         tools = [search_knowledge_base, get_admin_sales_report, check_inventory]
-        system_instruction = "You are the General Manager. You have full access to sales data and inventory. Be concise."
+        sys_instruct = "You are the General Manager. You have full access."
 
-    # Generate Response
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=message,
-        config=types.GenerateContentConfig(
-            tools=tools,
-            system_instruction=system_instruction,
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=False)
-        )
-    )
-    return response.text
-
-# --- PART 4: THE SIMULATION LOOP ---
-
-if __name__ == "__main__":
-    init_db()
-    print("-" * 50)
-    print("🤖 INTELLIGENT SITE BOT ENGINE LOADED")
-    print("Roles: 'visitor', 'client', 'admin'")
-    print("-" * 50)
-
-    while True:
-        print("\n--- NEW SESSION ---")
-        role = input("Who are you? (visitor/client/admin): ").lower().strip()
-        if role not in ['visitor', 'client', 'admin']:
-            print("Invalid role. Try again.")
-            continue
-            
-        current_user = "guest"
-        if role == "client":
-            current_user = "client_alice" # Simulate Alice logging in
-            print(f"(Logged in as {current_user})")
-        
-        while True:
-            msg = input(f"\n{role.upper()} > ")
-            if msg.lower() in ["quit", "switch"]:
-                break
-                
+    # 3. Generate Response
+    with st.chat_message("assistant"):
+        with st.spinner(f"Thinking as {user_role}..."):
             try:
-                answer = get_bot_response(role, current_user, msg)
-                print(f"Bot: {answer}")
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        tools=tools,
+                        system_instruction=sys_instruct,
+                        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=False)
+                    )
+                )
+                st.markdown(response.text)
+                st.session_state.messages.append({"role": "model", "content": response.text})
             except Exception as e:
-                print(f"Error: {e}")
+                st.error(f"Error: {e}")
