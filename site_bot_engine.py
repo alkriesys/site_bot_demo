@@ -1,5 +1,6 @@
 import streamlit as st
 import sqlite3
+import datetime
 from google import genai
 from google.genai import types
 import os
@@ -102,29 +103,45 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-if prompt := st.chat_input("Ask something..."):
+if prompt := st.chat_input(input_placeholder):
     # 1. User Message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # 2. Router Logic (Decide Brain)
+# 2. Router Logic
     tools = []
     sys_instruct = ""
+    
+    # Get current time string (e.g., "Monday, 14:30")
+    now_str = datetime.datetime.now().strftime("%A, %H:%M")
+
+    # Define the "Base Identity" that applies to everyone
+    # We tell it: You do NOT know the hours. You MUST search.
+    base_identity = f"""
+    Current Day/Time: {now_str}. 
+    You represent 'FutureTech Solutions'.
+    CRITICAL: For questions about hours, policies, or contact info, you MUST use the 'search_knowledge_base' tool. 
+    Do not guess.
+    """
 
     if user_role == "visitor":
         tools = [search_knowledge_base]
-        sys_instruct = "You are a Receptionist. Answer general questions. Do not discuss specific orders."
+        sys_instruct = base_identity + " You are a Receptionist. Answer general questions. Do not discuss specific orders."
+        input_placeholder = "Ask about opening hours, returns, or products..." # <--- Custom Text
+        
     elif user_role == "client":
-        # Wrap tool to inject user ID safely
         def safe_get_orders(): 
             return get_my_orders(current_user_id)
         tools = [search_knowledge_base, safe_get_orders]
-        sys_instruct = f"You are a Support Agent helping {current_user_id}. You can check their orders."
+        sys_instruct = base_identity + f" You are a Support Agent helping {current_user_id}. You can check their orders."
+        input_placeholder = "Ask 'Where is my order?' or about policies..." # <--- Custom Text
+        
     elif user_role == "admin":
         tools = [search_knowledge_base, get_admin_sales_report, check_inventory]
-        sys_instruct = "You are the General Manager. You have full access."
-
+        sys_instruct = base_identity + " You are the General Manager. You have full access."
+        input_placeholder = "Ask for sales reports, inventory, or revenue..." # <--- Custom Text
+        
     # 3. Generate Response
     with st.chat_message("assistant"):
         with st.spinner(f"Thinking as {user_role}..."):
