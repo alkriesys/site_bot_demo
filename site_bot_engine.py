@@ -23,9 +23,9 @@ def get_db_connection():
     # Seed Data
     cursor.execute("INSERT INTO products VALUES (1, 'AI Widget Pro', 50, 99.00)")
     cursor.execute("INSERT INTO products VALUES (2, 'Neural Chip', 10, 499.00)")
-    cursor.execute("INSERT INTO orders VALUES (101, 'client_alice', 'Shipped', 99.00)")
+    cursor.execute("INSERT INTO orders VALUES (101, 'client_diya', 'Shipped', 99.00)")
     cursor.execute("INSERT INTO orders VALUES (102, 'client_bob', 'Processing', 499.00)")
-    cursor.execute("INSERT INTO orders VALUES (103, 'client_alice', 'Delivered', 198.00)")
+    cursor.execute("INSERT INTO orders VALUES (103, 'client_diya', 'Delivered', 198.00)")
     conn.commit()
     return conn
 
@@ -78,16 +78,16 @@ client = genai.Client(api_key=api_key)
 
 # Sidebar: Role Selection (The "Login" Simulation)
 st.sidebar.header("Identity Simulation")
-role = st.sidebar.radio("Who are you?", ["Visitor", "Client (Alice)", "Admin"])
+role = st.sidebar.radio("Who are you?", ["Visitor", "Client (Diya)", "Admin"])
 
 # Map UI selection to internal role IDs
 user_role = "visitor"
 current_user_id = "guest"
 input_placeholder = "Ask about opening hours, returns, or products..." # <--- Custom Text
 
-if role == "Client (Alice)":
+if role == "Client (Diya)":
     user_role = "client"
-    current_user_id = "client_alice"
+    current_user_id = "client_diya"
     input_placeholder = "Ask 'Where is my order?' or about policies..." # <--- Custom Text
 elif role == "Admin":
     user_role = "admin"
