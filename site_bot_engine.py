@@ -1,7 +1,7 @@
 import streamlit as st
 import sqlite3
 import datetime
-import zoneinfo  # Built-in timezone support
+from zoneinfo import ZoneInfo # Explicitly import ZoneInfo
 from google import genai
 from google.genai import types
 import os
@@ -117,7 +117,13 @@ if prompt := st.chat_input(input_placeholder):
     tools = []
     sys_instruct = ""
 
-    now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
+    # FIX: Use datetime.datetime.now() with the Timezone
+    # We define the Timezone object
+    ist_zone = ZoneInfo("Asia/Kolkata")
+    
+    # We get the current time in that zone
+    # Notice the double 'datetime.datetime'
+    now_ist = datetime.datetime.now(ist_zone)
     
     # Get current time string (e.g., "Monday, 14:30")
     # now_str = datetime.datetime.now().strftime("%A, %H:%M")
