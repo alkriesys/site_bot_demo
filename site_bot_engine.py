@@ -1,6 +1,7 @@
 import streamlit as st
 import sqlite3
 import datetime
+import ZoneInfo  # Built-in timezone support
 from google import genai
 from google.genai import types
 import os
@@ -115,9 +116,12 @@ if prompt := st.chat_input(input_placeholder):
 # 2. Router Logic
     tools = []
     sys_instruct = ""
+
+    now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
     
     # Get current time string (e.g., "Monday, 14:30")
-    now_str = datetime.datetime.now().strftime("%A, %H:%M")
+    # now_str = datetime.datetime.now().strftime("%A, %H:%M")
+    now_str = now_ist.strftime("%A, %H:%M")
 
     # Define the "Base Identity" that applies to everyone
     # We tell it: You do NOT know the hours. You MUST search.
