@@ -10,6 +10,15 @@ import os
 st.set_page_config(page_title="Intelligent Site Bot", layout="wide")
 st.title("🤖 3-Brain Business Bot")
 
+with st.expander("💡 About this Demo:"):
+    st.markdown("""
+    This application showcases **Secure Enterprise AI Architecture** with **Role-Based Routing**.
+    
+    Instead of a "one-size-fits-all" bot, this system dynamically switches its "Brain" (System Instruction & Tools) based on who is logged in. It connects safely to a **SQL Database** to answer transactional queries (like "Where is my order?") without exposing sensitive Admin data to public visitors.
+    
+    **Role:** Architected the **Router Logic** that switches toolsets based on identity (Visitor/Client/Admin) and implemented Context-Awareness (Time Zone detection), demonstrating how to deploy AI safely in a corporate environment.
+    """)
+
 # --- PART 1: THE PERSISTENT DATABASE ---
 # We use @st.cache_resource so the DB isn't wiped every time you click a button
 @st.cache_resource
