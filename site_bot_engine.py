@@ -1,7 +1,7 @@
 import streamlit as st
 import sqlite3
 import datetime
-import ZoneInfo  # Built-in timezone support
+import zoneinfo  # Built-in timezone support
 from google import genai
 from google.genai import types
 import os
